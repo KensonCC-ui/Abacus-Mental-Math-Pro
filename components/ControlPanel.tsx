@@ -9,11 +9,10 @@ interface ControlPanelProps {
   onTeach: () => void;
   isTeaching: boolean;
   hasQuestion: boolean;
-  isLoading?: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({ 
-  onNewTask, onCheck, onReset, onTeach, isTeaching, hasQuestion, isLoading 
+  onNewTask, onCheck, onReset, onTeach, isTeaching, hasQuestion
 }) => {
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8">
@@ -42,7 +41,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* 功能操作區 */}
       <div className="flex flex-col sm:flex-row justify-center items-stretch gap-4 px-4">
         <button 
-          disabled={!hasQuestion || isTeaching || isLoading}
+          disabled={!hasQuestion || isTeaching}
           onClick={onTeach}
           className="group relative flex-1 flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 disabled:bg-stone-200 disabled:text-stone-400 hover:bg-orange-600 text-white font-black rounded-2xl shadow-[0_6px_0_rgb(194,120,3)] active:shadow-none active:translate-y-[6px] transition-all"
         >
@@ -51,12 +50,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </button>
         
         <button 
-          disabled={!hasQuestion || isLoading}
+          disabled={!hasQuestion}
           onClick={onCheck}
-          className={`group relative flex-1 flex items-center justify-center gap-2 px-8 py-4 ${isLoading ? 'bg-emerald-300' : 'bg-emerald-500 hover:bg-emerald-600'} disabled:bg-stone-200 disabled:text-stone-400 text-white font-black rounded-2xl shadow-[0_6px_0_rgb(16,185,129,0.7)] active:shadow-none active:translate-y-[6px] transition-all`}
+          className="group relative flex-1 flex items-center justify-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-stone-200 disabled:text-stone-400 text-white font-black rounded-2xl shadow-[0_6px_0_rgb(16,185,129,0.7)] active:shadow-none active:translate-y-[6px] transition-all"
         >
-          <span className="text-xl">{isLoading ? '⌛' : '✅'}</span>
-          <span>{isLoading ? '核對中...' : '核對答案'}</span>
+          <span className="text-xl">✅</span>
+          <span>核對答案</span>
         </button>
 
         <button 

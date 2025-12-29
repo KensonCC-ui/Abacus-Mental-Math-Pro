@@ -4,74 +4,36 @@ import {
   Difficulty, ColumnData, Question, AbacusStep 
 } from './types';
 import { 
-  getInitialAbacus, valueToState, stateToValue, 
-  calculateTotal, generateSteps, COLUMNS 
+  getInitialAbacus, stateToValue, 
+  calculateTotal, generateSteps
 } from './utils/abacusLogic';
 import AbacusColumn from './components/AbacusColumn';
 import ControlPanel from './components/ControlPanel';
-import { getAiTip } from './services/geminiService';
-import { generateGeminiSpeech, decodeAudioData } from './services/ttsService';
 
 const App: React.FC = () => {
   const [columns, setColumns] = useState<ColumnData[]>(getInitialAbacus());
   const [question, setQuestion] = useState<Question | null>(null);
   const [teachingSteps, setTeachingSteps] = useState<AbacusStep[]>([]);
+  const [correctionSteps, setCorrectionSteps] = useState<AbacusStep[]>([]);
   const [currentStepIdx, setCurrentStepIdx] = useState(-1);
-  const [resultMsg, setResultMsg] = useState<{ text: string, type: 'success' | 'error' | 'ai' } | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [resultMsg, setResultMsg] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
   const [voicesReady, setVoicesReady] = useState(false);
   
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Initialize Web Audio for Gemini TTS
-  const getAudioContext = () => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    }
-    return audioContextRef.current;
-  };
-
-  const playGeminiAudio = async (text: string) => {
-    const audioData = await generateGeminiSpeech(text);
-    if (!audioData) return false;
-
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') await ctx.resume();
-
-    const buffer = await decodeAudioData(new Uint8Array(audioData), ctx);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    source.start();
-    return true;
-  };
-
-  const speak = useCallback((text: string, forceNative = true) => {
+  const speak = useCallback((text: string) => {
     if (!window.speechSynthesis) return;
-
-    // Fix for Chrome getting stuck
     window.speechSynthesis.cancel();
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
-    }
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
 
     setTimeout(() => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-TW';
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-
       const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => v.lang === 'zh-TW') || 
-                            voices.find(v => v.lang.startsWith('zh-TW')) ||
+      const preferredVoice = voices.find(v => v.lang.startsWith('zh-TW')) || 
                             voices.find(v => v.lang.startsWith('zh-HK')) ||
                             voices.find(v => v.lang.startsWith('zh'));
-      
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-
+      if (preferredVoice) utterance.voice = preferredVoice;
       currentUtteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     }, 100);
@@ -80,8 +42,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (window.speechSynthesis) {
       const updateVoices = () => {
-        const v = window.speechSynthesis.getVoices();
-        if (v.length > 0) setVoicesReady(true);
+        if (window.speechSynthesis.getVoices().length > 0) setVoicesReady(true);
       };
       window.speechSynthesis.addEventListener('voiceschanged', updateVoices);
       updateVoices();
@@ -107,52 +68,45 @@ const App: React.FC = () => {
 
   const handleNewTask = (diff: Difficulty) => {
     let n1 = 0, n2 = 0;
-    let diffName = "";
     const op = Math.random() > 0.4 ? '+' : '-';
     switch(diff) {
-      case Difficulty.UNIT: n1 = Math.floor(Math.random() * 9) + 1; n2 = Math.floor(Math.random() * 9) + 1; diffName = "個位數"; break;
-      case Difficulty.TENS: n1 = Math.floor(Math.random() * 89) + 10; n2 = Math.floor(Math.random() * 89) + 10; diffName = "十位數"; break;
-      case Difficulty.HUNDREDS: n1 = Math.floor(Math.random() * 899) + 100; n2 = Math.floor(Math.random() * 899) + 100; diffName = "百位數"; break;
-      case Difficulty.THOUSANDS: n1 = Math.floor(Math.random() * 8999) + 1000; n2 = Math.floor(Math.random() * 8999) + 1000; diffName = "千位數"; break;
+      case Difficulty.UNIT: n1 = Math.floor(Math.random() * 9) + 1; n2 = Math.floor(Math.random() * 9) + 1; break;
+      case Difficulty.TENS: n1 = Math.floor(Math.random() * 89) + 10; n2 = Math.floor(Math.random() * 89) + 10; break;
+      case Difficulty.HUNDREDS: n1 = Math.floor(Math.random() * 899) + 100; n2 = Math.floor(Math.random() * 899) + 100; break;
+      case Difficulty.THOUSANDS: n1 = Math.floor(Math.random() * 8999) + 1000; n2 = Math.floor(Math.random() * 8999) + 1000; break;
       case Difficulty.MIXED:
         const exp = Math.floor(Math.random() * 4) + 1;
         n1 = Math.floor(Math.random() * Math.pow(10, exp));
         n2 = Math.floor(Math.random() * Math.pow(10, exp));
-        diffName = "隨機挑戰";
         break;
     }
     if (op === '-' && n1 < n2) [n1, n2] = [n2, n1];
     setQuestion({ n1, n2, op, target: op === '+' ? n1 + n2 : n1 - n2 });
     setColumns(getInitialAbacus());
     setTeachingSteps([]);
+    setCorrectionSteps([]);
     setCurrentStepIdx(-1);
     setResultMsg(null);
-    setIsAiLoading(false);
-    speak(`好的，開始練習${diffName}。題目是：${n1} ${op === '+' ? '加' : '減'} ${n2}`);
+    speak(`準備好了，題目是：${n1} ${op === '+' ? '加' : '減'} ${n2}`);
   };
 
   const handleCheck = async () => {
-    if (!question || isAiLoading) return;
+    if (!question) return;
     const currentVal = calculateTotal(columns);
+    
     if (currentVal === question.target) {
       setResultMsg({ text: "🌟 太棒了！撥珠完全正確！", type: 'success' });
       speak("太棒了，撥珠完全正確");
+      setCorrectionSteps([]);
     } else {
-      const errorMsg = `❌ 哎呀，不對喔。撥出的值是 ${currentVal}，再試一次！`;
-      setResultMsg({ text: errorMsg, type: 'error' });
+      const basicError = `❌ 哎呀，不對喔。撥出的值是 ${currentVal}，正確應該是 ${question.target}。再試一次！`;
+      setResultMsg({ text: basicError, type: 'error' });
       speak("不對喔，再檢查一下");
-      try {
-        setIsAiLoading(true);
-        const tip = await getAiTip(`${question.n1} ${question.op} ${question.n2}`, currentVal, question.target);
-        setResultMsg({ text: `${errorMsg}\n\n🤖 AI 老師建議：${tip}`, type: 'ai' });
-        // Use Gemini TTS for AI Teacher Tip
-        const played = await playGeminiAudio(tip);
-        if (!played) speak(tip);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsAiLoading(false);
-      }
+
+      // Show correction steps automatically in traditional mode
+      const steps = generateSteps(question);
+      setCorrectionSteps(steps);
+      speak("別擔心，下面為你列出了正確的撥珠步驟，請參考看看。");
     }
   };
 
@@ -160,17 +114,13 @@ const App: React.FC = () => {
     if (!question) return;
     const steps = generateSteps(question);
     setTeachingSteps(steps);
+    setCorrectionSteps([]);
     setCurrentStepIdx(0);
     setColumns(getInitialAbacus());
-    applyStep(steps[0]);
+    setColumns(steps[0].snapshot);
+    speak(steps[0].speak);
     setResultMsg(null);
-    speak("進入演示教學模式，請跟著我一步步練習");
   };
-
-  const applyStep = useCallback((step: AbacusStep) => {
-    setColumns(step.snapshot);
-    speak(step.speak);
-  }, [speak]);
 
   const exitTeaching = useCallback(() => {
     setCurrentStepIdx(-1);
@@ -182,17 +132,12 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen pb-20 pt-8 px-4 sm:px-10 bg-slate-50">
       <header className="text-center mb-8 relative max-w-5xl mx-auto">
-        <div className="hidden sm:flex absolute top-0 right-0 items-center gap-2">
-          <span className={`text-xs font-bold px-2 py-1 rounded-full ${voicesReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-            {voicesReady ? '🔊 語音就緒' : '⌛ 語音載入中'}
+        <div className="flex absolute top-0 right-0 items-center gap-2">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${voicesReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+            {voicesReady ? '🔊 語音就緒' : '⌛ 語音載入'}
           </span>
-          <button 
-            onClick={() => speak("測試語音成功，請開始練習")}
-            className="text-xs bg-stone-200 hover:bg-stone-300 px-2 py-1 rounded font-medium transition-colors"
-          >
-            🔊 測試語音
-          </button>
         </div>
+
         <h1 className="text-5xl font-black text-stone-800 tracking-tight">
           珠心算專業教室 <span className="text-amber-600">Pro</span>
         </h1>
@@ -208,13 +153,12 @@ const App: React.FC = () => {
             onReset={() => {
               setColumns(getInitialAbacus());
               setResultMsg(null);
+              setCorrectionSteps([]);
               exitTeaching();
-              setIsAiLoading(false);
               speak("算盤已歸零清空");
             }}
             isTeaching={currentStepIdx !== -1}
             hasQuestion={!!question}
-            isLoading={isAiLoading}
           />
         </div>
 
@@ -232,20 +176,30 @@ const App: React.FC = () => {
         </div>
 
         {currentStepIdx !== -1 && (
-          <div className="mb-8 p-6 bg-amber-50 rounded-2xl border-2 border-amber-200 shadow-inner animate-in slide-in-from-top duration-300">
+          <div className="mb-8 p-6 bg-amber-50 rounded-2xl border-2 border-amber-200 shadow-inner">
             <div className="flex flex-col items-center gap-4">
-              <div className="text-2xl font-bold text-amber-900 bg-white px-8 py-3 rounded-full shadow-sm border border-amber-200">
+              <div className="text-2xl font-bold text-amber-900 bg-white px-8 py-3 rounded-full shadow-sm border border-amber-200 text-center">
                 {teachingSteps[currentStepIdx].message}
               </div>
               {teachingSteps[currentStepIdx].formula && (
-                <div className="px-6 py-2 bg-rose-500 text-white font-black rounded-xl text-xl uppercase tracking-widest shadow-lg animate-bounce">
+                <div className="px-6 py-2 bg-rose-500 text-white font-black rounded-xl text-xl uppercase shadow-lg animate-bounce">
                   口訣：{teachingSteps[currentStepIdx].formula}
                 </div>
               )}
               <div className="flex gap-4">
-                <button onClick={() => currentStepIdx > 0 && (setCurrentStepIdx(currentStepIdx-1), applyStep(teachingSteps[currentStepIdx-1]))} disabled={currentStepIdx === 0} className="px-8 py-3 bg-stone-700 hover:bg-stone-800 text-white rounded-xl disabled:opacity-30 transition-all font-bold">⬅️ 上一步</button>
-                <button onClick={() => currentStepIdx < teachingSteps.length-1 && (setCurrentStepIdx(currentStepIdx+1), applyStep(teachingSteps[currentStepIdx+1]))} disabled={currentStepIdx === teachingSteps.length - 1} className="px-8 py-3 bg-stone-700 hover:bg-stone-800 text-white rounded-xl disabled:opacity-30 transition-all font-bold">下一步 ➡️</button>
-                <button onClick={exitTeaching} className="px-8 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-all font-bold shadow-lg">❌ 退出教學</button>
+                <button onClick={() => {
+                  const idx = Math.max(0, currentStepIdx - 1);
+                  setCurrentStepIdx(idx);
+                  setColumns(teachingSteps[idx].snapshot);
+                  speak(teachingSteps[idx].speak);
+                }} disabled={currentStepIdx === 0} className="px-8 py-3 bg-stone-700 text-white rounded-xl disabled:opacity-30">⬅️ 上一步</button>
+                <button onClick={() => {
+                  const idx = Math.min(teachingSteps.length - 1, currentStepIdx + 1);
+                  setCurrentStepIdx(idx);
+                  setColumns(teachingSteps[idx].snapshot);
+                  speak(teachingSteps[idx].speak);
+                }} disabled={currentStepIdx === teachingSteps.length - 1} className="px-8 py-3 bg-stone-700 text-white rounded-xl disabled:opacity-30">下一步 ➡️</button>
+                <button onClick={exitTeaching} className="px-8 py-3 bg-rose-600 text-white rounded-xl shadow-lg">❌ 退出</button>
               </div>
             </div>
           </div>
@@ -264,11 +218,10 @@ const App: React.FC = () => {
 
         {resultMsg && (
           <div className={`p-8 rounded-3xl border-4 whitespace-pre-line animate-in fade-in slide-in-from-bottom duration-500 ${
-            resultMsg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 
-            resultMsg.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+            resultMsg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
           }`}>
             <div className="text-2xl font-black flex items-start gap-4">
-              <span className="text-4xl">{resultMsg.type === 'success' ? '🎖️' : resultMsg.type === 'error' ? '💡' : '🤖'}</span>
+              <span className="text-4xl">{resultMsg.type === 'success' ? '🎖️' : '💡'}</span>
               <div className="flex-1">
                 {resultMsg.text}
               </div>
@@ -276,14 +229,42 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {isAiLoading && (
-          <div className="mt-8 flex flex-col items-center gap-3 text-indigo-600 font-bold animate-pulse">
-            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-lg">AI 老師正在準備個別化指導...</p>
+        {/* Correction Steps Section */}
+        {correctionSteps.length > 0 && (
+          <div className="mt-10 animate-in fade-in slide-in-from-top duration-700">
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-3xl">📝</span>
+              <h3 className="text-2xl font-black text-stone-700">正確撥珠步驟回顧</h3>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {correctionSteps.map((step, idx) => (
+                <div 
+                  key={idx} 
+                  onClick={() => setColumns(step.snapshot)}
+                  className="group cursor-pointer bg-stone-50 border border-stone-200 p-5 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all shadow-sm active:scale-95"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs font-bold text-stone-400 uppercase tracking-tighter">步驟 {idx + 1}</span>
+                    {step.formula && (
+                      <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded font-black">{step.formula}</span>
+                    )}
+                  </div>
+                  <p className="text-stone-800 font-bold group-hover:text-amber-700 transition-colors">{step.message}</p>
+                  <div className="mt-3 flex gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                    {step.snapshot.map((c, i) => (
+                      <div key={i} className={`w-full h-1 rounded-full ${c.value > 0 ? 'bg-amber-500' : 'bg-stone-300'}`}></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 p-4 bg-amber-100/50 rounded-xl text-amber-800 text-sm font-medium text-center">
+              💡 點擊上方的步驟卡片，可以將算盤切換到該步驟的狀態進行觀察。
+            </div>
           </div>
         )}
       </main>
-      <footer className="text-center mt-12 text-stone-400 text-sm font-medium">
+      <footer className="text-center mt-12 text-stone-400 text-sm">
         <p>&copy; 2026 珠心算專業教室 Pro - 智慧與傳統的完美結合</p>
       </footer>
     </div>
