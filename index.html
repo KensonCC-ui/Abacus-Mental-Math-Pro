@@ -1,0 +1,51 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>珠心算專業教室 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+      body {
+        font-family: 'Noto Sans TC', sans-serif;
+        background-color: #f8fafc;
+      }
+      .abacus-frame {
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 10px 25px rgba(0,0,0,0.2);
+      }
+      .bead-shadow {
+        box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+      }
+      .bead-active-shadow {
+        box-shadow: 0 4px 0 rgba(217, 119, 6, 0.5);
+      }
+      /* 彈性撥珠動畫：帶有輕微回彈效果，模擬實體手感 */
+      .bead-transition {
+        transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                    background-color 0.3s ease, 
+                    box-shadow 0.3s ease,
+                    transform 0.1s ease;
+      }
+      .bead-transition:active {
+        transform: scale(0.95);
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

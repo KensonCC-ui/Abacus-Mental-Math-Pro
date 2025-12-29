@@ -1,0 +1,7 @@
+{
+  "name": "珠心算專業教室 Pro",
+  "description": "An advanced interactive abacus (Soroban) learning platform featuring real-time bead simulation, formula-based teaching, and AI-powered mental arithmetic guidance.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
